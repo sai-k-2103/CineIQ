@@ -20,11 +20,16 @@ cineiq_df = cineiq_df.fillna("")
 tfidf = TfidfVectorizer(stop_words="english", min_df=4,max_features=20000)
 tfidf_matrix = tfidf.fit_transform(cineiq_df["soup"])
 
-def search_movie(query):
-    matches = cineiq_df[cineiq_df["title"].str.lower().str.contains(query.lower(),na=False)]
+def search_movie(query: str):
+    matches = cineiq_df[cineiq_df["title"].str.lower().str.contains(query.lower(), na=False, regex=False)].copy()
+    
     if matches.empty:
-        return "No movies found."
-    return matches[["movieId","title"]].head(10)
+        return None
+    
+    matches['title_length'] = matches['title'].str.len()
+    matches = matches.sort_values('title_length')
+    
+    return matches[["movieId", "title"]].head(10)
 
 def get_hybrid_recommendations(user_id: int, target_idx: int, n=10, svd_weight = 0.7, content_weight = 0.3):
     target_movie_id = cineiq_df.iloc[target_idx]["movieId"]
