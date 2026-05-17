@@ -1,4 +1,12 @@
 pandas
 numpy
 scikit-learn
-jupyter
+scikit-surprise
+
+vaderSentiment
+transformers
+torch
+
+fastapi
+uvicorn
+pydantic
