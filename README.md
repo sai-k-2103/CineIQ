@@ -52,11 +52,31 @@ The system integrates:
 CineIQ/
 │
 ├── CineIq_Data/
+|   ├── demo_ratings.csv
 │   ├── imdb-50k/
+│   │   └── imdb_reviews.csv
+│   │
 │   ├── ml-25m/
-│   ├── tmdb-45k/
+│   │   ├── genome-scores.csv
+│   │   ├── genome-tags.csv
+│   │   ├── links.csv
+│   │   ├── movies.csv
+│   │   ├── ratings.csv
+│   │   ├── README.txt
+│   │   └── tags.csv
+│   │
 │   ├── modify/
-│   └── demo_ratings.csv
+│   │   ├── cineiq_metadata.csv
+│   │   └── svd_model.pkl
+│   │
+│   └── tmdb-45k/
+│       ├── credits.csv
+│       ├── keywords.csv
+│       ├── links.csv
+│       ├── links_small.csv
+│       ├── movies_metadata.csv
+│       ├── ratings.csv
+│       └── ratings_small.csv
 │
 ├── src/
 │   ├── main.py
@@ -166,3 +186,5 @@ http://localhost:8501
 |---|---|
 | RMSE | 0.8456 |
 | MAE | 0.6454 |
+
+Demo Link : https://drive.google.com/drive/folders/1C87OmPHEJhonLR9CPUPIPx8hGdMjy4OS
