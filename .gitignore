@@ -9,3 +9,6 @@ CineIq_Data/
 
 __pycache__/
 *.pyc
+
+mlruns/
+*.db
