@@ -22,7 +22,7 @@ def run_ml_ops_logging():
         mlflow.log_param("optimization_epochs", epochs)
         mlflow.log_param("learning_rate", lr_all)
         
-        algo = SVD(n_factors=n_factors, epochs=epochs, lr_all=lr_all, random_state=42)
+        algo = SVD(n_factors=n_factors, n_epochs=epochs, lr_all=lr_all, random_state=42)
         cv_results = cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=3, verbose=True)
         
         mlflow.log_metric("validation_rmse", cv_results['test_rmse'].mean())

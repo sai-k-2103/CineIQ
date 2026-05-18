@@ -91,10 +91,19 @@ with tab2:
         
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("🕸️ Genre Radar Distribution Weights")
+            st.subheader("🕸️ Top Core Genre Distribution")
             g_df = pd.DataFrame(list(p_data["genres"].items()), columns=["Genre", "Count"])
-            fig_radar = go.Figure(data=go.Scatterpolar(r=g_df['Count'].tolist(), theta=g_df['Genre'].tolist(), fill='toself', line_color='#e74c3c'))
-            st.plotly_chart(fig_radar, use_container_width=True)
+            
+            if not g_df.empty:
+                r_values = g_df['Count'].tolist()
+                r_values.append(r_values[0])
+                theta_values = g_df['Genre'].tolist()
+                theta_values.append(theta_values[0])
+                
+                fig_radar = go.Figure(data=go.Scatterpolar(r=r_values, theta=theta_values, fill='toself', line_color='#e74c3c'))
+                st.plotly_chart(fig_radar, use_container_width=True)
+            else:
+                st.write("Insufficient data for radar.")
         with c2:
             st.subheader("⏳ Temporal Preferences Distribution")
             d_df = pd.DataFrame(list(p_data["decades"].items()), columns=["Decade", "Count"]).sort_values("Decade")

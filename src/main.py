@@ -21,46 +21,49 @@ if not os.path.exists(DEMO_RATINGS_PATH) and os.path.exists(RAW_RATINGS_PATH):
 
 VALID_IDS = cineiq_df['movieId'].unique().tolist()
 REVIEW_DATASTORE = load_imdb_dataset(csv_path=IMDB_CSV_PATH, valid_movie_ids=VALID_IDS, reviews_per_movie=3)
+try:
+    RATINGS_MATRIX = pd.read_csv(DEMO_RATINGS_PATH)
+    print("-> SUCCESS: Ratings matrix loaded into RAM.")
+except Exception:
+    RATINGS_MATRIX = pd.DataFrame()
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "application": "CINEIQ Engine"}
+    return {"status": "online"}
 
 @app.get("/search")
 def api_search_movie(Movie_name: str):
     results = search_movie(Movie_name)
     if results is None:
-        raise HTTPException(status_code=404, detail="No matching release located.")
-    output = []
-    for idx, row in results.iterrows():
-        output.append({"matrix_index": idx, "movieId": row["movieId"], "title": row["title"]})
-    return {"results": output}
+        raise HTTPException(status_code=404, detail="No matches.")
+    return {"results": [{"matrix_index": idx, "movieId": row["movieId"], "title": row["title"]} for idx, row in results.iterrows()]}
 
 @app.get("/recommend")
 def api_get_recommendations(User_Id: int, Movie_name: str):
     try:
         search_results = search_movie(Movie_name)
         if search_results is None:
-            raise HTTPException(status_code=404, detail="Anchor trace target missing.")
+            raise HTTPException(status_code=404, detail="Target missing.")
         
         best_match_idx = search_results.index[0]
         actual_movie_title = search_results.iloc[0]['title']
 
-        try:
-            ratings_df = pd.read_csv(DEMO_RATINGS_PATH)
-            user_history = ratings_df[ratings_df['userId'] == User_Id]
+        if not RATINGS_MATRIX.empty:
+            user_history = RATINGS_MATRIX[RATINGS_MATRIX['userId'] == User_Id]
             disliked_movie_ids = user_history[user_history['rating'] <= 2.5]['movieId'].tolist()
-        except Exception:
+        else:
             disliked_movie_ids = []
 
         hybrid_results = get_hybrid_recommendations(user_id=User_Id, target_idx=best_match_idx).copy()
+        
+        penalty_applied = False
         
         if disliked_movie_ids:
             hated_movies_df = cineiq_df[cineiq_df['movieId'].isin(disliked_movie_ids)]
             hated_genres_set = set()
             for genres_str in hated_movies_df['genres'].dropna():
-                genres_list = genres_str.split('|') if '|' in genres_str else [genres_str]
-                hated_genres_set.update([g.strip().lower() for g in genres_list])
+                for g in (genres_str.split('|') if '|' in genres_str else [genres_str]):
+                    hated_genres_set.add(g.strip().lower())
             
             penalized_scores = []
             for _, row in hybrid_results.iterrows():
@@ -71,6 +74,7 @@ def api_get_recommendations(User_Id: int, Movie_name: str):
                 if genre_collision and len(current_genres) > 0:
                     if (len(genre_collision) / len(current_genres)) > 0.5:
                         penalty = 0.70  
+                        penalty_applied = True
                 penalized_scores.append(row['hybrid_score'] * penalty)
             hybrid_results['hybrid_score'] = penalized_scores
 
@@ -79,23 +83,8 @@ def api_get_recommendations(User_Id: int, Movie_name: str):
         return {
             "requested_by_user": User_Id,
             "anchor_movie_used": actual_movie_title,
-            "negative_filter_applied": len(disliked_movie_ids) > 0,
+            "negative_filter_applied": penalty_applied,
             "recommendations": final_reranked_results[['movieId', 'title', 'hybrid_score', 'final_score']].to_dict(orient="records")
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/similar")
-def api_get_similar_movies(Movie_name: str):
-    try:
-        search_results = search_movie(Movie_name)
-        if search_results is None:
-            raise HTTPException(status_code=404, detail="Target asset unmapped.")
-        best_match_idx = search_results.index[0]
-        content_only = get_hybrid_recommendations(user_id=1, target_idx=best_match_idx, svd_weight=0.0, content_weight=1.0)
-        return {
-            "target_movie": search_results.iloc[0]['title'],
-            "similar_content": content_only[['movieId', 'title']].to_dict(orient="records")
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -103,11 +92,12 @@ def api_get_similar_movies(Movie_name: str):
 @app.get("/user/profile")
 def get_user_profile(User_Id: int):
     try:
-        ratings_df = pd.read_csv(DEMO_RATINGS_PATH)
-        user_history = ratings_df[(ratings_df['userId'] == User_Id) & (ratings_df['rating'] >= 3.5)]
-        
+        if RATINGS_MATRIX.empty:
+             raise HTTPException(status_code=500, detail="Matrix unavailable.")
+             
+        user_history = RATINGS_MATRIX[(RATINGS_MATRIX['userId'] == User_Id) & (RATINGS_MATRIX['rating'] >= 3.5)]
         if user_history.empty:
-            raise HTTPException(status_code=404, detail="Profile out of current chunk slice ranges.")
+            raise HTTPException(status_code=404, detail="No history found.")
             
         merged = user_history.merge(cineiq_df, on='movieId', how='inner')
         
@@ -115,6 +105,8 @@ def get_user_profile(User_Id: int):
         for g_str in merged['genres'].dropna():
             for g in (g_str.split('|') if '|' in g_str else [g_str]):
                 genre_counts[g.strip()] = genre_counts.get(g.strip(), 0) + 1
+                
+        top_genres = dict(sorted(genre_counts.items(), key=lambda item: item[1], reverse=True)[:8])
                 
         decade_counts = {}
         for title in merged['title']:
@@ -157,13 +149,10 @@ def get_user_profile(User_Id: int):
 
         top_directors = sorted(director_counts.items(), key=lambda x: x[1], reverse=True)[:3]
         top_actors = sorted(actor_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        
-        if not top_directors: top_directors = [("Christopher Nolan", 1), ("Steven Spielberg", 1)]
-        if not top_actors: top_actors = [("Leonardo DiCaprio", 1), ("Tom Hanks", 1)]
 
         return {
             "total_liked_movies": len(merged),
-            "genres": genre_counts,
+            "genres": top_genres,
             "decades": decade_counts,
             "directors": [{"Director": d, "Count": c} for d, c in top_directors],
             "actors": [{"Actor": a, "Count": c} for a, c in top_actors]

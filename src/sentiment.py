@@ -10,13 +10,12 @@ def calculate_review_sentiment(reviews: list):
     if not reviews:
         return 0.0
     
-    vader_scores = []
-    distilbert_scores = []
+    vader_scores = [vader_analyzer.polarity_scores(r)['compound'] for r in reviews]
     
-    for review in reviews:
-        vader_scores.append(vader_analyzer.polarity_scores(review)['compound'])
-        
-        db_res = distilbert_analyzer(review, truncation=True, max_length=512)[0]
+    db_results = distilbert_analyzer(reviews, truncation=True, max_length=512)
+    
+    distilbert_scores = []
+    for db_res in db_results:
         score = db_res['score']
         if db_res['label'] == 'NEGATIVE':
             score = -score
